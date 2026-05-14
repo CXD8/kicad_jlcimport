@@ -6,7 +6,7 @@ from ..easyeda.ee_types import EEFootprint
 from ..easyeda.parser import compute_arc_midpoint
 from ._format import escape_sexpr as _escape
 from ._format import fmt_float as _fmt
-from ._format import fmt_geometry as _geom
+from ._format import fmt_pcb_coord as _coord
 from ._format import gen_uuid as _uuid
 from .version import DEFAULT_KICAD_VERSION, footprint_format_version, has_embedded_fonts, has_generator_version
 
@@ -54,10 +54,10 @@ def write_footprint(
         lines.append(f'  (tags "{_escape(keywords)}")')
 
     # Properties
-    lines.append(f'  (property "Reference" "REF**" (at 0 {_geom(ref_y)} 0) (layer "F.SilkS") (uuid "{_uuid()}")')
+    lines.append(f'  (property "Reference" "REF**" (at 0 {_coord(ref_y)} 0) (layer "F.SilkS") (uuid "{_uuid()}")')
     lines.append("    (effects (font (size 1 1) (thickness 0.15)))")
     lines.append("  )")
-    lines.append(f'  (property "Value" "~" (at 0 {_geom(val_y)} 0) (layer "F.Fab") (uuid "{_uuid()}")')
+    lines.append(f'  (property "Value" "~" (at 0 {_coord(val_y)} 0) (layer "F.Fab") (uuid "{_uuid()}")')
     lines.append("    (effects (font (size 1 1) (thickness 0.15)))")
     lines.append("  )")
     if datasheet:
@@ -83,8 +83,8 @@ def write_footprint(
             x1, y1 = track.points[i]
             x2, y2 = track.points[i + 1]
             lines.append(
-                f"  (fp_line (start {_geom(x1)} {_geom(y1)}) (end {_geom(x2)} {_geom(y2)})"
-                f" (stroke (width {_geom(track.width)}) (type solid))"
+                f"  (fp_line (start {_coord(x1)} {_coord(y1)}) (end {_coord(x2)} {_coord(y2)})"
+                f" (stroke (width {_coord(track.width)}) (type solid))"
                 f' (layer "{track.layer}") (uuid "{_uuid()}"))'
             )
 
@@ -93,9 +93,9 @@ def write_footprint(
         end_x = circle.cx + circle.radius
         fill_str = " (fill solid)" if circle.filled else ""
         lines.append(
-            f"  (fp_circle (center {_geom(circle.cx)} {_geom(circle.cy)})"
-            f" (end {_geom(end_x)} {_geom(circle.cy)})"
-            f" (stroke (width {_geom(circle.width)}) (type solid))"
+            f"  (fp_circle (center {_coord(circle.cx)} {_coord(circle.cy)})"
+            f" (end {_coord(end_x)} {_coord(circle.cy)})"
+            f" (stroke (width {_coord(circle.width)}) (type solid))"
             f"{fill_str}"
             f' (layer "{circle.layer}") (uuid "{_uuid()}"))'
         )
@@ -109,16 +109,16 @@ def write_footprint(
         else:
             s, e = arc.start, arc.end
         lines.append(
-            f"  (fp_arc (start {_geom(s[0])} {_geom(s[1])})"
-            f" (mid {_geom(mid[0])} {_geom(mid[1])})"
-            f" (end {_geom(e[0])} {_geom(e[1])})"
-            f" (stroke (width {_geom(arc.width)}) (type solid))"
+            f"  (fp_arc (start {_coord(s[0])} {_coord(s[1])})"
+            f" (mid {_coord(mid[0])} {_coord(mid[1])})"
+            f" (end {_coord(e[0])} {_coord(e[1])})"
+            f" (stroke (width {_coord(arc.width)}) (type solid))"
             f' (layer "{arc.layer}") (uuid "{_uuid()}"))'
         )
 
     # Solid regions (e.g., pin 1 indicators, courtyard outlines)
     for region in footprint.regions:
-        pts_str = " ".join(f"(xy {_geom(x)} {_geom(y)})" for x, y in region.points)
+        pts_str = " ".join(f"(xy {_coord(x)} {_coord(y)})" for x, y in region.points)
         if region.layer in ("F.CrtYd", "B.CrtYd"):
             # Courtyard must be an unfilled outline, not a filled polygon
             lines.append(
@@ -138,21 +138,19 @@ def write_footprint(
     # Pads
     for pad in footprint.pads:
         pad_type, pad_shape, layers = _pad_type_info(pad)
-        at_str = f"(at {_geom(pad.x)} {_geom(pad.y)}"
+        at_str = f"(at {_coord(pad.x)} {_coord(pad.y)}"
         if pad.rotation != 0:
             at_str += f" {_fmt(pad.rotation)}"
         at_str += ")"
 
-        size_str = f"(size {_geom(pad.width)} {_geom(pad.height)})"
+        size_str = f"(size {_coord(pad.width)} {_coord(pad.height)})"
         layers_str = " ".join(f'"{layer}"' for layer in layers)
 
         if pad_shape == "custom" and pad.polygon_points:
-            # Custom pad with polygon primitives.  The polygon vertices
-            # already define the final shape, so omit pad rotation to
-            # avoid double-rotating.
-            custom_at = f"(at {_geom(pad.x)} {_geom(pad.y)})"
+            # Custom pad with polygon primitives.
+            custom_at = f"(at {_coord(pad.x)} {_coord(pad.y)})"
             pts = pad.polygon_points
-            pts_str = " ".join(f"(xy {_geom(pts[i])} {_geom(pts[i + 1])})" for i in range(0, len(pts) - 1, 2))
+            pts_str = " ".join(f"(xy {_coord(pts[i])} {_coord(pts[i + 1])})" for i in range(0, len(pts) - 1, 2))
             # Use a minimal anchor size — the actual shape is defined
             # entirely by the gr_poly primitive.  A large anchor would fill
             # in the castellated notches of the custom polygon.
@@ -175,9 +173,9 @@ def write_footprint(
     for hole in footprint.holes:
         diameter = hole.radius * 2
         lines.append(
-            f'  (pad "" np_thru_hole circle (at {_geom(hole.x)} {_geom(hole.y)})'
-            f" (size {_geom(diameter)} {_geom(diameter)})"
-            f" (drill {_geom(diameter)})"
+            f'  (pad "" np_thru_hole circle (at {_coord(hole.x)} {_coord(hole.y)})'
+            f" (size {_coord(diameter)} {_coord(diameter)})"
+            f" (drill {_coord(diameter)})"
             f' (layers "*.Cu" "*.Mask") (uuid "{_uuid()}"))'
         )
 
@@ -186,7 +184,7 @@ def write_footprint(
         ox, oy, oz = model_offset
         rx, ry, rz = model_rotation
         lines.append(f'  (model "{model_path}"')
-        lines.append(f"    (offset (xyz {_geom(ox)} {_geom(oy)} {_geom(oz)}))")
+        lines.append(f"    (offset (xyz {_coord(ox)} {_coord(oy)} {_coord(oz)}))")
         lines.append("    (scale (xyz 1 1 1))")
         lines.append(f"    (rotate (xyz {_fmt(rx)} {_fmt(ry)} {_fmt(rz)}))")
         lines.append("  )")
@@ -199,20 +197,13 @@ def write_footprint(
 
 
 def _drill_str(pad) -> str:
-    """Return the KiCad drill specification string for a pad.
-
-    For oval slot drills (slot_length > 0), returns ``(drill oval W H)``
-    with the slot oriented to match the pad aspect ratio.
-    For circular drills, returns ``(drill D)``.
-    """
+    """Return the KiCad drill specification string for a pad."""
     if pad.slot_length > 0:
         if pad.height >= pad.width:
-            # Vertical slot: narrow dimension = drill, long dimension = slot_length
-            return f"(drill oval {_geom(pad.drill)} {_geom(pad.slot_length)})"
+            return f"(drill oval {_coord(pad.drill)} {_coord(pad.slot_length)})"
         else:
-            # Horizontal slot: long dimension = slot_length, narrow dimension = drill
-            return f"(drill oval {_geom(pad.slot_length)} {_geom(pad.drill)})"
-    return f"(drill {_geom(pad.drill)})"
+            return f"(drill oval {_coord(pad.slot_length)} {_coord(pad.drill)})"
+    return f"(drill {_coord(pad.drill)})"
 
 
 def _pad_type_info(pad):
