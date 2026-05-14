@@ -41,10 +41,34 @@ def fmt_float(v: float) -> str:
 
 
 def fmt_geometry(v: float) -> str:
-    """Format a KiCad coordinate or dimension, snapping tiny grid noise."""
+    """Format a KiCad coordinate or dimension, snapping tiny grid noise.
+    
+    Used primarily for Schematic Symbols where preserving native 1 mil 
+    increments is required for KiCad schematic grid alignment.
+    """
     if math.isnan(v) or math.isinf(v):
         return "0"
     return fmt_float(_snap_grid_noise(v))
+
+
+def fmt_pcb_coord(v: float) -> str:
+    """Format a footprint coordinate or pad dimension.
+
+    Aggressively rounds to 0.005 mm (5 microns) to clean up EasyEDA's sloppy
+    metric/imperial coordinate mixing. This guarantees clean numbers like
+    0.275, 0.325, 0.370 which snap perfectly to standard KiCad PCB grids,
+    while remaining lossless for real-world manufacturing and preserving
+    standard imperial pitches (2.54, 1.27, 0.635).
+    """
+    if math.isnan(v) or math.isinf(v):
+        return "0"
+        
+    # 5 micron metric smoothing grid
+    grid = 0.005
+    rounded = round(v / grid) * grid
+    
+    # Strictly limit to 3 decimal places to kill all trailing silkscreen/pad precision noise
+    return fmt_float(round(rounded, 3))
 
 
 def escape_sexpr(s: str) -> str:
